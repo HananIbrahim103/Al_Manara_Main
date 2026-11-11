@@ -12,9 +12,9 @@
 <link rel="stylesheet" href="css/monitor.css">
 </head>
 <body class="intro intrograph">
+<div id="login" role="main" aria-label="Log in"></div>
 <div id="intro" aria-label="Intro animation">
   <canvas id="introCanvas"></canvas>
-  <div id="gate" role="button" tabindex="0" aria-label="Enter the dashboard (plays a short intro with sound)"><div class="dot"></div><span>click to enter</span></div>
   <button id="introSkip">skip intro →</button>
 </div>
 
@@ -32,7 +32,8 @@
   </nav>
   <div class="topright">
     <div class="tag">Assuring intelligence<br>across every entity</div>
-    <div class="user"><span>M. Al Mansoori</span><span class="avatar">MA</span></div>
+    <div class="user"><span id="userName"></span><span class="avatar" id="userAvatar"></span></div>
+    <button class="pill" id="signOut">Log out</button>
   </div>
 </header>
 
@@ -66,7 +67,7 @@
   <div class="ov3">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-size:22px;letter-spacing:-.02em;line-height:1.15">Awaiting your sign-off</div>
+        <div style="font-size:22px;letter-spacing:-.02em;line-height:1.15" id="signoffTitle">Awaiting your sign-off</div>
         <span class="mono" style="font-size:12px;color:var(--mute)" id="signoffCount"></span>
       </div>
       <div class="signoff" id="signoffList"></div>
@@ -175,6 +176,7 @@
 <script src="js/emblem-pen.js"></script>
 <script src="js/agent-icons.js"></script>
 <script src="js/records.js"></script>
+<script src="js/access.js"></script>
 <script src="js/core.js"></script>
 <script src="js/departments.js"></script>
 <script src="js/registry.js"></script>

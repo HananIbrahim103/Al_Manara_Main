@@ -1,8 +1,8 @@
 /* =========================================================
    LIVE DATA (add-on)
-   Connects the prototype to the governance backend without
-   changing any other file. Loaded last. Until someone connects,
-   the page runs on its own sample data exactly as before.
+   Connects the prototype to the governance backend. Loaded last.
+   Logging in on the first screen connects as that role's seeded
+   person; until that answers, the page runs on its sample data.
 
    Once connected it reads the backend (read-only) and puts its
    departments, use cases, assessments, deployments, alerts and
@@ -293,8 +293,9 @@
     extendTables();
     fill(DEPTS, r.depts); fill(ENTITIES, r.entities); fill(SYSTEMS, r.systems); fill(LIVE, r.liveSystems);
     fill(ASSESSMENTS, r.records); fill(EVENTS, r.events); fill(APPROVED_MODELS, r.approved); fill(UAE_STANDARDS, r.standards);
+    ACCESS.scope();
     if (!r.hasLatency) { const i = MEASURES.findIndex(x => x.k === "lat"); if (i >= 0) MEASURES.splice(i, 1); r.systems.forEach(s => { s.m.lat = s.live.lat = 0; s.trend.lat = Array(8).fill(0); }); }
-    AGENTS.forEach((a, i) => { const n = r.systems.filter(s => s.stage === i + 1).length; a.load = i === 7 ? `${r.liveSystems.length} systems watched` : i === 6 ? `${n} awaiting humans` : `${n} with this agent`; });
+    AGENTS.forEach((a, i) => { const n = SYSTEMS.filter(s => s.stage === i + 1).length; a.load = i === 7 ? `${LIVE.length} systems watched` : i === 6 ? `${n} awaiting humans` : `${n} with this agent`; });
     Object.assign(dView, { d: 0, s: 0, filter: "all" }); Object.assign(regView, { q: "", dept: "", tier: "", group: "", open: null }); Object.assign(monView, { open: null, dept: "", status: "", q: "" });
 
     if (!wrapped) {
@@ -314,32 +315,19 @@
       monitorAction = function () { toast("This connection is read-only. Pausing and re-checks are done in the backend by the department's named people."); };
     }
     live.evidenceItems = r.evidenceItems;
-    drawOverview(r);
+    refreshOverview(r);
     if (typeof showAgent === "function") { const keep = hero.focus; showAgent(Math.max(0, keep)); hero.focus = keep; }
-    const sel = $("#fEntity"); if (sel) sel.innerHTML = `<option value="">Select entity…</option>${ENTITIES.map(e => `<option>${html(e)}</option>`).join("")}`;
+    syncEntity();
     if (!$("#liveNewNote")) { const n = document.createElement("p"); n.id = "liveNewNote"; n.className = "hint"; n.style.margin = "0 0 14px";
       n.textContent = "Prototype simulation: a use case built here, its risk tier and its agent pipeline are not yet saved to or run by the registry."; const at = $("#v-define"); at.parentNode.insertBefore(n, at); }
     if (currentPage !== "overview" && currentPage !== "new" && PAGE_HOOKS[currentPage]) { PAGE_HOOKS[currentPage](); syncRoute(); }
   }
 
-  function drawOverview(r) {
-    $("#dIndex").innerHTML = DEPTS.map((d, i) => `<button data-d="${i}" data-i="${i}"><span>${html(d.short)}</span><em style="margin-left:${i * 7}px">${String(i + 1).padStart(2, "0")}</em></button>`).join("");
-    $("#gCount").textContent = `${DEPTS.length} departments · ${SYSTEMS.length} agentic systems`;
+  function refreshOverview(r) {
+    drawOverview();
     const big = document.querySelector("#p-overview .stack .card:nth-child(2) div[style*='font-size:30px']");
     if (big) big.firstChild.textContent = r.evidenceItems.toLocaleString("en-GB") + " ";
-    const recent = ASSESSMENTS.filter(a => a.sy).slice(0, 6);
-    $("#rows").innerHTML = recent.map(a => { const s = a.sy;
-      return `<button class="trow" data-d="${s.d}" data-s="${s.k}" aria-label="Open ${html(a.name)} in Departments"><span class="mono">${a.id}</span><span>${html(a.name)}</span><small>${html(s.dept.name)}</small>
-        <span><span class="tier ${a.tier}">${CAPITAL(a.tier)}</span></span>
-        <span class="stages">${AGENTS.map((_, i) => `<i class="${s.stage === 8 || i < s.stage - 1 ? "d" : i === s.stage - 1 ? "c" : ""}"></i>`).join("")}</span><small>${a.outcome}</small></button>`; }).join("");
-    const awaiting = SYSTEMS.filter(s => s.state === "signoff");
-    $("#signoffCount").textContent = String(awaiting.length).padStart(2, "0");
-    $("#signoffList").innerHTML = awaiting.length ? awaiting.map(s => `<button data-d="${s.d}" data-s="${s.k}"><b>${html(s.name)}</b><small>${html(s.dept.short)} · ${s.teams.length} reviewers · decision belongs to ${html(s.approver)}</small><span class="tier ${s.tier}">${CAPITAL(s.tier)}</span></button>`).join("")
-      : `<p style="color:var(--mute);font-size:12.5px;margin:14px 0 0">Nothing is waiting for a decision.</p>`;
-    /* the network graph lays itself out when its canvas changes size: nudge it so it rebuilds from the new departments */
-    const cv = $("#heroCanvas"), was = cv.style.width;
-    cv.style.width = "calc(100% - 2px)";
-    requestAnimationFrame(() => requestAnimationFrame(() => { cv.style.width = was; }));
+    graph.rebuild();
   }
 
   /* ---------- the small connection control in the header ---------- */
@@ -353,27 +341,15 @@
   function setChip(text, state) {
     chip.innerHTML = `<i style="display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:${state === "live" ? "#21633e" : state === "busy" ? "#c58a2a" : state === "error" ? "#b3402e" : "#9a9a9a"}"></i>${html(text)}`;
   }
-  async function openPanel() {
+  function openPanel() {
     panel.style.display = "block";
     const signedIn = live.on;
-    panel.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${signedIn ? "Live data" : "Connect to the registry"}</div>
-      <p style="margin:0 0 10px;color:var(--mute);font-size:12px;line-height:1.5">${signedIn ? `Signed in as ${html(live.user.full_name)}, ${html(live.user.title)}. Read-only. Loaded ${live.loadedAt}.` : "The page is showing its own sample data. Choose a seeded person to load the registry's real records (read-only; the data is synthetic, so there are no passwords)."}</p>
-      <div id="livePanelBody" style="font-size:12px;color:var(--mute)">${signedIn ? "" : "Looking for the backend…"}</div>
+    panel.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${signedIn ? "Live data" : "Sample data"}</div>
+      <p style="margin:0 0 10px;color:var(--mute);font-size:12px;line-height:1.5">${signedIn ? `Read-only. Loaded ${live.loadedAt}.` : "The backend has not answered, so the page is showing its own sample data. If it is the hosted one it may be waking up (up to a minute); try again. If it is local, start it on port 8000 and make sure this page's address is in its CORS_ORIGINS."}</p>
       ${signedIn && live.notes.length ? `<details style="margin:8px 0;font-size:12px;color:var(--mute)"><summary>${live.notes.length} thing${live.notes.length > 1 ? "s" : ""} not shown</summary><ul style="margin:6px 0 0;padding-left:16px">${live.notes.map(n => `<li>${html(n)}</li>`).join("")}</ul></details>` : ""}
       <p style="margin:10px 0 0;font-size:11px;color:var(--mute);word-break:break-all">Backend: ${html(API)}</p>
-      ${signedIn ? `<div style="display:flex;gap:8px;margin-top:10px"><button class="pill solid" id="liveRefresh">Refresh</button><button class="pill" id="liveOff">Back to sample data</button></div>` : ""}`;
-    if (signedIn) { $("#liveRefresh").onclick = () => connect(); $("#liveOff").onclick = () => { session.token = null; location.reload(); }; return; }
-    try {
-      /* the list of people is the only thing the backend gives out before sign-in, so group them by their email's organisation */
-      const users = await get("/auth/users"), groups = {};
-      const org = u => ((u.email.split("@")[1] || "").split(".")[0] || "registry").toUpperCase();
-      users.forEach(u => (groups[org(u)] = groups[org(u)] || []).push(u));
-      $("#livePanelBody").innerHTML = `<select class="select" id="liveUser" aria-label="Sign in as" style="width:100%">${Object.entries(groups).map(([g, list]) => `<optgroup label="${html(g)}">${list.map(u => `<option value="${html(u.email)}">${html(u.full_name)} · ${html(u.title)}</option>`).join("")}</optgroup>`).join("")}</select>
-        <button class="pill solid" id="liveGo" style="margin-top:10px">Connect</button>`;
-      $("#liveGo").onclick = () => connect($("#liveUser").value);
-    } catch (e) {
-      $("#livePanelBody").innerHTML = `<span style="color:#b3402e">The backend did not answer.</span> If it is the hosted one it may be waking up (up to a minute); try again. If it is local, start it on port 8000 and make sure this page's address is in its CORS_ORIGINS.`;
-    }
+      <button class="pill solid" id="liveRefresh" style="margin-top:10px">${signedIn ? "Refresh" : "Try again"}</button>`;
+    $("#liveRefresh").onclick = () => connect(session.token ? undefined : ACCESS.user.email);
   }
   async function connect(email) {
     try {
@@ -383,14 +359,17 @@
       live.user = await get("/auth/me");
       const records = build(await load());
       if (!records.systems.length) throw new Error("The registry has no assessed use cases to show yet");
+      const want = ACCESS.user.dept;
+      if (want && !records.depts.some(d => d.code === want.code)) throw new Error(`The registry has nothing to show for ${want.name} yet`);
       live.notes = records.notes; live.on = true; live.loadedAt = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
       apply(records);
-      const who = document.querySelector(".topright .user");
-      if (who) { who.children[0].textContent = live.user.full_name; who.children[1].textContent = live.user.full_name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase(); }
       setChip("Live data", "live"); panel.style.display = "none";
     } catch (e) {
       console.error("[live data]", e);
-      setChip(live.on ? "Live data" : "Sample data", live.on ? "live" : "error"); toast(`Could not load live data: ${e.message}. ${live.on ? "Showing the last loaded data." : "Still showing sample data."}`);
+      setChip(live.on ? "Live data" : "Sample data", live.on ? "live" : "error");
+      const say = () => toast(`Could not load live data: ${e.message}. ${live.on ? "Showing the last loaded data." : "Still showing sample data."}`);
+      /* the connection starts during the intro: hold the message until the page is showing */
+      if (document.getElementById("intro")) addEventListener("intro:complete", say, { once: true }); else say();
     }
   }
   function mount() {
@@ -404,7 +383,9 @@
     chip.onclick = () => panel.style.display === "block" ? (panel.style.display = "none") : openPanel();
     document.addEventListener("click", e => { if (!wrap.contains(e.target)) panel.style.display = "none"; });
     if (params.get("sample") === "1") return;
-    if (session.token) connect();   /* already signed in on this tab: go straight to live data */
+    /* the role chosen on the first screen decides who connects; the intro covers the wait */
+    const start = () => connect(session.token ? undefined : ACCESS.user.email);
+    if (ACCESS.user) start(); else addEventListener("access:login", start, { once: true });
   }
   mount();
 })();

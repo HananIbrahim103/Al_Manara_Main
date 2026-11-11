@@ -71,8 +71,9 @@ backend/
 ## Frontend (Almanara)
 
 `frontend/` is the designer's static prototype, unchanged, plus one add-on file, `frontend/js/api.js`, and the one
-`<script>` line that loads it. The page opens on its own sample data. The **Sample data** button in the header lets you
-pick a seeded person and connect; Overview, Departments, Registry and Monitor then show the backend's records, read-only.
+`<script>` line that loads it. The first screen offers three logins (Director, Department head, Employee), defined with
+what each may see and do in `frontend/js/access.js`. Logging in connects as that role's seeded person; Overview,
+Departments, Registry and Monitor then show the backend's records, read-only, or the sample data if it can't be reached.
 The New use case wizard and its pipeline, the ROI figures and the Monitor's Pause / Re-check buttons are still the
 prototype's own simulation and say so.
 

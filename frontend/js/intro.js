@@ -7,7 +7,7 @@
    Hooks: window "intro:complete" event fires when the dashboard is live.
    ========================================================= */
 (function(){
-  const intro=$("#intro"),cv=$("#introCanvas"),c=cv.getContext("2d"),gate=$("#gate"),skipB=$("#introSkip");
+  const intro=$("#intro"),cv=$("#introCanvas"),c=cv.getContext("2d"),skipB=$("#introSkip");
   const NOTES=[294,330,392,440,494,587,659,784];
   const T={first:.3,gap:.2,drawFor:.6,unspool:2.5,write:6.2,inkEnd:12,settle:12.4,pre:13.6,hand:14.2,handEnd:15.7};
   const MARK=.26;   /* emblem radius as a share of the smaller screen side */
@@ -26,7 +26,10 @@
     graph.go(performance.now());
     if(reduce||docks)intro.remove();else{intro.classList.add("out");setTimeout(()=>intro.remove(),600)}
     window.dispatchEvent(new CustomEvent("intro:complete"))}
-  if(reduce||/^#\/(?!overview)\w/.test(location.hash)){finish();return}
+  /* the intro plays once, straight after logging in; a refresh or a link to a page goes directly there */
+  if(reduce||ACCESS.user){finish();return}
+  skipB.style.display="none";
+  addEventListener("access:login",()=>/^#\/(?!overview)\w/.test(location.hash)?finish():begin(),{once:true});
 
   const lerp=(a,b,t)=>a+(b-a)*t,cl=v=>Math.max(0,Math.min(1,v)),sm=(a,b,v)=>{const t=cl((v-a)/(b-a));return t*t*(3-2*t)};
   const eIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,eOut=t=>1-Math.pow(1-t,3);
@@ -60,10 +63,8 @@
   const cues=[...formAt.map((ft,i)=>({t:ft+.02,fn:()=>bubble(NOTES[i],i?.075:.1)})),
     {t:T.unspool,fn:()=>whoosh(T.write-T.unspool)},{t:T.write,fn:()=>pad()},{t:T.inkEnd-.2,fn:()=>bubble(150,.15)},{t:T.handEnd-.15,fn:()=>{bubble(220,.08);chime()}}];
 
-  function begin(){if(start)return;initAudio();if(ac&&ac.state==="suspended")ac.resume();gate.classList.add("hide");start=performance.now();requestAnimationFrame(frame)}
-  gate.addEventListener("click",begin);gate.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();begin()}});gate.focus();
-  skipB.addEventListener("click",()=>{if(!start){gate.classList.add("hide");start=performance.now();requestAnimationFrame(frame)}
-    start=performance.now()-T.pre*1000;cues.forEach((q,i)=>{if(q.t<T.hand)fired.add(i)})});
+  function begin(){if(start)return;initAudio();if(ac&&ac.state==="suspended")ac.resume();skipB.style.display="";start=performance.now();requestAnimationFrame(frame)}
+  skipB.addEventListener("click",()=>{start=performance.now()-T.pre*1000;cues.forEach((q,i)=>{if(q.t<T.hand)fired.add(i)})});
 
   function panelPath(r){c.beginPath();c.roundRect(r.x,r.y,r.w,r.h,r.r)}
   function panelEdge(r){if(!docks||!r.r)return;c.strokeStyle="rgba(38,38,38,.2)";c.lineWidth=1;panelPath({x:r.x+.5,y:r.y+.5,w:r.w-1,h:r.h-1,r:r.r});c.stroke()}

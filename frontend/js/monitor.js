@@ -186,14 +186,14 @@ function compliance() {
 
 /* ---------- the report cards ---------- */
 function card_(s) {
-  const h = HEALTH[s.health], r = roiOf(s), on = onTarget(s), std = s.passed("now");
+  const h = HEALTH[s.health], r = roiOf(s), on = onTarget(s), std = s.passed("now"), value = ACCESS.can("value");
   return `<button class="mc ${h.cls}" data-card="${s.id}" aria-haspopup="dialog">
     <span class="mc-top"><span class="mc-name">${s.name}</span><span class="hstat ${h.cls}"><i aria-hidden="true"></i>${h.label}</span></span>
     <span class="mc-sub">${s.dept.short}<span class="dot" aria-hidden="true"></span>${CAPITAL(s.tier)} risk</span>
-    <span class="mc-kpis">
+    <span class="mc-kpis${value ? "" : " two"}">
       <span><em>Standards</em><strong class="${std < s.standards.length ? "warn" : ""}">${std}/${s.standards.length}</strong></span>
       <span><em>On target</em><strong class="${on < MEASURES.length ? "warn" : ""}">${on}/${MEASURES.length}</strong></span>
-      <span><em>Net value / yr</em><strong class="${r.net < 0 ? "warn" : ""}">${aed(r.net)}</strong></span>
+      ${value ? `<span><em>Net value / yr</em><strong class="${r.net < 0 ? "warn" : ""}">${aed(r.net)}</strong></span>` : ""}
     </span>
     <span class="mc-foot">${s.version.label} v${s.version.current}${s.version.newer ? `<span class="mc-new">Newer version available</span>` : ""}</span>
   </button>`;
@@ -236,7 +236,7 @@ function modelsTab() {
     <section class="mon-lessons">
       <h3>Latest lessons sent to the Registry</h3>
       <ul>${lessons.map(e => `<li><span>${fmtDate(e.date)} · ${e.sy.dept.short}</span>${e.lesson}</li>`).join("")}</ul>
-      <button class="linky" id="toLessons">See all incidents and lessons</button>
+      ${ACCESS.can("registry") ? `<button class="linky" id="toLessons">See all incidents and lessons</button>` : ""}
     </section>`;
 }
 
@@ -333,11 +333,13 @@ function advice(s) {
 function openReport(id) {
   const s = LIVE.find(x => x.id === id); if (!s) return;
   monView.open = id;
+  const value = ACCESS.can("value"), act = ACCESS.can("act");
+  if (!value) monView.rtab = "live";
   const h = HEALTH[s.health], broken = s.conditions.filter(c => !c.ok).length, nowP = s.passed("now"), lastP = s.passed("last");
   const changeWord = x => x.now === x.last ? "No change" : x.now === "pass" ? "Improved" : x.now === "fail" ? "Newly failing" : "Now under review";
   const r = v => { const m = STANDARD_RESULT[v]; return `<span class="res ${m.cls}"><i aria-hidden="true">${m.icon}</i>${m.label}</span>`; };
   const open = s.events.some(e => e.status !== "resolved");
-  const tabs = `<div class="rp-tabs" role="tablist" aria-label="Report views">${[["live", "Live measures"], ["roi", "ROI"]].map(([v, l]) => `<button role="tab" id="rtab-${v}" aria-selected="${monView.rtab === v}" class="${monView.rtab === v ? "on" : ""}" data-rtab="${v}">${l}</button>`).join("")}</div>`;
+  const tabs = value ? `<div class="rp-tabs" role="tablist" aria-label="Report views">${[["live", "Live measures"], ["roi", "ROI"]].map(([v, l]) => `<button role="tab" id="rtab-${v}" aria-selected="${monView.rtab === v}" class="${monView.rtab === v ? "on" : ""}" data-rtab="${v}">${l}</button>`).join("")}</div>` : "";
   const head = `<div class="rp-head"><span class="hstat ${h.cls}"><i aria-hidden="true"></i>${h.label}</span><span class="tier ${s.tier}">${CAPITAL(s.tier)} risk</span><span class="rp-model">${s.version.label} v${s.version.current}${s.version.newer ? ` <span class="badge">Newer version available</span>` : ""}</span></div>`;
   const live = `
     <h3>Live measures</h3>
@@ -358,12 +360,14 @@ function openReport(id) {
     ${s.events.length ? `<ul class="evs">${s.events.map(e => { const st = e.status === "resolved" ? "Resolved" : HEALTH[e.status].label; return `<li><span>${fmtDate(e.date)}</span><b>${e.title}</b><small>${st}</small></li>`; }).join("")}</ul>` : `<p class="empty left">Nothing so far. No re-checks have been needed.</p>`}`;
   const body = `${head}${tabs}<div class="rp-panel" role="tabpanel" aria-labelledby="rtab-${monView.rtab}">${monView.rtab === "roi" ? roiTab(s) : live}</div>`;
   const foot = `<div class="rp-next"><span>Recommended next action</span><p>${advice(s)}</p></div>
-    <div class="rp-btns">
+    ${act ? `<div class="rp-btns">
       <button class="pill solid" id="doRecheck" ${open ? "disabled" : ""}>${open ? "Re-check running" : "Send for re-check"}</button>
       <button class="pill" id="doPause" ${s.health === "paused" ? "disabled" : ""}>${s.health === "paused" ? "Paused" : "Pause"}</button>
       <button class="pill" id="doHistory">Open history in Registry</button>
-    </div>`;
+    </div>` : `<p class="rp-note">Only your department head or a director can pause this model or send it for a re-check.</p>`}`;
   openSheet(s.name, `${s.dept.name} · ${s.id}`, body, foot);
+  $$("#sheet [data-rtab]").forEach(b => b.onclick = () => { monView.rtab = b.dataset.rtab; openReport(id); $(`#rtab-${monView.rtab}`).focus({ preventScroll: true }); });
+  if (!act) return;
   const refresh = () => { renderMonitorBody(); openReport(id); };
   $("#doRecheck").onclick = () => { monitorAction(s, "recheck"); refresh(); };
   $("#doPause").onclick = e => {
@@ -372,7 +376,6 @@ function openReport(id) {
     b.dataset.sure = "1"; b.textContent = "Confirm: stop this model"; b.classList.add("danger");
   };
   $("#doHistory").onclick = () => { closeSheet(); openRegistryFor(s.id); };
-  $$("#sheet [data-rtab]").forEach(b => b.onclick = () => { monView.rtab = b.dataset.rtab; openReport(id); $(`#rtab-${monView.rtab}`).focus({ preventScroll: true }); });
 }
 function howSheet() {
   const q = quarter();
@@ -391,10 +394,12 @@ function howSheet() {
 function renderMonitorBody() {
   const healthy = LIVE.filter(s => s.health === "healthy").length, need = LIVE.length - healthy, q = quarter(), c = compliance();
   $("#monSummary").textContent = `${healthy} of ${LIVE.length} healthy, ${need} need action`;
-  const pf = roiPortfolio();
   $("#monDays").textContent = q.days + " days";
-  $("#monVal").textContent = aed(pf.net);
-  $("#monValNote").textContent = `${roiPct(pf)} ROI · ${num(pf.hours)} staff hours`;
+  if (ACCESS.can("value")) {
+    const pf = roiPortfolio();
+    $("#monVal").textContent = aed(pf.net);
+    $("#monValNote").textContent = `${roiPct(pf)} ROI · ${num(pf.hours)} staff hours`;
+  }
   $("#monNext").textContent = q.next;
   $("#monPct").textContent = c.pct + "%";
   $("#monPctNote").textContent = `${c.pass} of ${c.total} rule checks passed`;
@@ -409,7 +414,7 @@ function renderMonitor() {
       <div class="mon-tiles">
         <div class="mon-tile"><small>Next quarterly check</small><b id="monDays"></b><span id="monNext"></span></div>
         <div class="mon-tile"><small>Compliance so far</small><b id="monPct"></b><span id="monPctNote"></span></div>
-        <div class="mon-tile"><small>Net AI value a year</small><b id="monVal"></b><span id="monValNote"></span></div>
+        ${ACCESS.can("value") ? `<div class="mon-tile"><small>Net AI value a year</small><b id="monVal"></b><span id="monValNote"></span></div>` : ""}
         <button class="pill" id="monHow">How this works</button>
       </div>
     </div>

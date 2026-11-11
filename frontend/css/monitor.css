@@ -52,6 +52,7 @@
 .mc-sub{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin-top:4px}
 .mc-sub .dot{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.6}
 .mc-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.mc-kpis.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .mc-kpis>span{display:flex;flex-direction:column;gap:2px;padding:10px 0 10px 12px;border-left:1px solid var(--line)}
 .mc-kpis>span:first-child{border-left:0;padding-left:0}
 .mc-kpis em{font-style:normal;font-size:12px;color:var(--mute);white-space:nowrap}

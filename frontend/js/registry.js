@@ -4,7 +4,8 @@
    ========================================================= */
 const regView = { tab: "history", q: "", dept: "", tier: "", group: "", open: null };
 const OUTCOME_CLS = { "Approved with conditions": "ok", "Re-check passed": "ok", "Waiting for sign-off": "rev", "Being checked": "info", "Re-check running": "info", "Paused, re-check running": "bad", "Not approved": "bad", "Retired": "no" };
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* A system's name: a link only if this person may open it. */
+const sysLink = s => ACCESS.sees(s) ? `<button class="linky" data-d="${s.d}" data-s="${s.k}">${s.name}</button>` : `<span>${s.name}</span>`;
 
 function openRegistryFor(id) {
   const rec = ASSESSMENTS.find(a => a.sy && a.sy.id === id);
@@ -64,22 +65,22 @@ function historyTab() {
     <div id="regRows"></div>
   </div>`;
 }
-function modelsTab() {
+function approvedTab() {
   return `<p class="note wide">Before a department reuses an approved AI, Agent 1 compares five things: <b>version, risk level, data, language and users</b>. Whatever is different gets tested again. The department using it always stays accountable.</p>
   <div class="m-grid">${APPROVED_MODELS.map(m => `<article class="card model">
     <header><div><div class="eyebrow">${m.maker}</div><h3>${m.name}</h3></div><span class="flag ${m.ready ? "ok" : "no"}"><i>${m.ready ? "✓" : "○"}</i>${m.ready ? "Ready to reuse" : "One agent so far"}</span></header>
     <dl class="facts tight"><div><dt>Version</dt><dd>${m.version}</dd></div><div><dt>Approved for data</dt><dd>${m.data}</dd></div><div><dt>Languages</dt><dd>${m.language}</dd></div><div><dt>Used with</dt><dd>${m.people}</dd></div></dl>
     <div class="eyebrow ad-sub">In use by</div>
-    <ul class="m-users">${m.users.map(s => `<li><button class="linky" data-d="${s.d}" data-s="${s.k}">${s.name}</button><small>${s.dept.short}</small></li>`).join("")}</ul>
+    <ul class="m-users">${m.users.map(s => `<li>${sysLink(s)}<small>${s.dept.short}</small></li>`).join("")}</ul>
   </article>`).join("")}</div>`;
 }
 function lessonsTab() {
   return `<p class="note wide">Everything Agent 8 finds is recorded here, so one department's problem doesn't have to happen again somewhere else.</p>
-  <div class="l-list">${EVENTS.map(ev => {
+  <div class="l-list">${EVENTS.filter(ev => ACCESS.sees(ev.sy) || ev.lesson).map(ev => {
     const open = ev.status !== "resolved", h = HEALTH[ev.status] || { label: "Resolved", icon: "✓", cls: "ok" };
     return `<article class="card lesson">
       <header><div><div class="eyebrow">${fmtDate(ev.date)} · ${ev.t.name}</div><h3>${ev.title}</h3></div><span class="flag ${h.cls}"><i>${h.icon}</i>${open ? h.label : "Resolved"}</span></header>
-      <p class="l-where"><button class="linky" data-d="${ev.sy.d}" data-s="${ev.sy.k}">${ev.sy.name}</button> · ${ev.sy.dept.short}</p>
+      <p class="l-where">${sysLink(ev.sy)} · ${ev.sy.dept.short}</p>
       <div class="l-learned"><span>Lesson for everyone</span><p>${ev.lesson || "Still being worked out. It will be added when the re-check finishes."}</p></div>
     </article>`;
   }).join("")}</div>`;
@@ -96,7 +97,7 @@ function renderRegistry() {
       <div class="card"><b>${EVIDENCE_TOTAL.toLocaleString("en-GB")}</b><span>Evidence items to reuse</span></div>
     </div>
     <div class="seg" role="tablist" aria-label="Registry sections">${tabs.map(([v, l]) => `<button role="tab" aria-selected="${regView.tab === v}" class="${regView.tab === v ? "on" : ""}" data-tab="${v}">${l}</button>`).join("")}</div>
-    <div id="regBody">${regView.tab === "history" ? historyTab() : regView.tab === "models" ? modelsTab() : lessonsTab()}</div>`;
+    <div id="regBody">${regView.tab === "history" ? historyTab() : regView.tab === "models" ? approvedTab() : lessonsTab()}</div>`;
   if (regView.tab === "history") regRows();
 }
 PAGE_HOOKS.registry = renderRegistry;

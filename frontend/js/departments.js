@@ -58,7 +58,7 @@ function agentDetail(sy) {
     ${testsBlock(sy)}
     ${sy.state === "live" ? `<div class="eyebrow ad-sub">Rules it must follow while live</div><ul class="conds2">${sy.conditions.map(c => `<li class="${c.ok ? "ok" : "bad"}"><i aria-hidden="true">${c.ok ? "✓" : "✕"}</i>${c.text}${c.ok ? "" : " <b>(not being followed)</b>"}</li>`).join("")}</ul>` : ""}
     <div class="ad-foot">
-      <button class="pill" data-history="${sy.id}">See its history in the Registry</button>
+      ${ACCESS.can("registry") ? `<button class="pill" data-history="${sy.id}">See its history in the Registry</button>` : ""}
       ${sy.state === "live" ? `<button class="pill" data-monitor="${sy.id}">See it in Monitor</button>` : ""}
     </div>`;
 }

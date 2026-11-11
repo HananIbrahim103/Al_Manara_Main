@@ -11,6 +11,7 @@ const state = {entity:"",owner:"",purpose:new Set(),users:new Set(),data:null,au
    NAV
    ========================================================= */
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 /* Each page can register a function that draws it when it opens. */
 const PAGE_HOOKS = {};
 const PATHS = {overview:"overview",new:"new",dept:"departments",registry:"registry",monitor:"monitor"};
@@ -18,6 +19,7 @@ let currentPage = "overview", lastHash = location.hash;
 function routeHash(){return "#/"+PATHS[currentPage]+(currentPage==="dept"?`/${DEPTS[dView.d].code}/${dView.s+1}`:"")}
 function syncRoute(){const h=routeHash();if(location.hash===h)return;lastHash=h;location.hash=h}
 function go(p){
+  if(p==="registry"&&!ACCESS.can("registry"))p="overview";
   currentPage=p;
   $$(".page").forEach(x=>x.classList.toggle("on",x.id==="p-"+p));
   $$(".nav button[data-go]").forEach(b=>{const on=b.dataset.go===p;b.classList.toggle("on",on);on?b.setAttribute("aria-current","page"):b.removeAttribute("aria-current")});
@@ -58,19 +60,28 @@ ag.addEventListener("focusin",e=>{const b=e.target.closest("button"); if(b) show
 showAgent(0);hero.focus=-1;
 ag.addEventListener("mouseleave",()=>hero.focus=-1);
 
-const ROWS=[
-  ["UC-2026-0139","Visa FAQ assistant","Federal Authority for Identity & Citizenship","medium",7,"Awaiting sign-off"],
-  ["UC-2026-0137","Benefit eligibility triage","Ministry of Human Resources & Emiratisation","high",6,"Concluding"],
-  ["UC-2026-0135","Meeting minutes drafter","Department of Government Enablement","low",7,"Fast lane · review"],
-  ["UC-2026-0131","Clinic appointment router","Ministry of Health & Prevention","high",4,"Red team + user testing"],
-  ["UC-2026-0128","Traffic fine explainer","Roads & Transport Authority","medium",8,"Deployed · monitored"],
-];
-$("#rows").innerHTML = ROWS.map(r=>{const sy=sysByName(r[1]);return `<button class="trow" data-d="${sy.d}" data-s="${sy.k}" aria-label="Open ${r[1]} in Departments"><span class="mono">${r[0]}</span><span>${r[1]}</span><small>${r[2]}</small>
-  <span><span class="tier ${r[3]}">${cap(r[3])}</span></span>
-  <span class="stages">${AGENTS.map((_,i)=>`<i class="${i<r[4]-1?'d':i===r[4]-1?'c':''}"></i>`).join("")}</span><small>${r[5]}</small></button>`}).join("");
-const awaiting=SYSTEMS.filter(s=>s.state==="signoff");
-$("#signoffCount").textContent=String(awaiting.length).padStart(2,"0");
-$("#signoffList").innerHTML=awaiting.map(s=>`<button data-d="${s.d}" data-s="${s.k}"><b>${s.name}</b><small>${s.dept.short} · ${s.teams.length} review teams · needs a named approver</small><span class="tier ${s.tier}">${cap(s.tier)}</span></button>`).join("");
+/* The parts of the Overview drawn from the records: redrawn when the person or the data changes. */
+function drawOverview(){
+  $("#dIndex").innerHTML=DEPTS.map((d,i)=>`<button data-d="${i}" data-i="${i}"><span>${esc(d.short)}</span><em style="margin-left:${i*7}px">${String(i+1).padStart(2,"0")}</em></button>`).join("");
+  $("#gCount").textContent=`${DEPTS.length} department${DEPTS.length>1?"s":""} · ${SYSTEMS.length} agentic systems`;
+  $("#rows").innerHTML=ASSESSMENTS.filter(a=>a.sy).slice(0,6).map(a=>{const s=a.sy;return `<button class="trow" data-d="${s.d}" data-s="${s.k}" aria-label="Open ${esc(a.name)} in Departments"><span class="mono">${a.id}</span><span>${esc(a.name)}</span><small>${esc(s.dept.name)}</small>
+    <span><span class="tier ${a.tier}">${cap(a.tier)}</span></span>
+    <span class="stages">${AGENTS.map((_,i)=>`<i class="${s.stage===8||i<s.stage-1?"d":i===s.stage-1?"c":""}"></i>`).join("")}</span><small>${a.outcome}</small></button>`}).join("");
+  const approver=ACCESS.can("approve"),awaiting=SYSTEMS.filter(s=>s.state==="signoff");
+  $("#signoffTitle").textContent=approver?"Awaiting your sign-off":"Waiting for sign-off";
+  $("#signoffCount").textContent=String(awaiting.length).padStart(2,"0");
+  $("#signoffList").innerHTML=awaiting.length?awaiting.map(s=>`<button data-d="${s.d}" data-s="${s.k}"><b>${esc(s.name)}</b><small>${esc(s.dept.short)} · ${s.teams.length} review teams · ${approver?"needs a named approver":"waiting for approval"}</small><span class="tier ${s.tier}">${cap(s.tier)}</span></button>`).join("")
+    :`<p style="color:var(--mute);font-size:12.5px;margin:14px 0 0">Nothing is waiting for a decision.</p>`;
+}
+/* The header: who is signed in, and only the pages they may open. */
+function drawUser(){
+  const u=ACCESS.user;if(!u)return;
+  $("#userName").innerHTML=`${u.name}<small>${u.label}</small>`;
+  $("#userAvatar").textContent=u.name.split(/\s+/).map(w=>w[0]).filter((_,i,a)=>!i||i===a.length-1).join("");
+  $(".nav button[data-go=registry]").hidden=!ACCESS.can("registry");
+  $(".nav button[data-go=dept]").textContent=u.dept?"My department":"Departments";
+}
+$("#signOut").addEventListener("click",()=>ACCESS.signOut());
 function cap(s){return s[0].toUpperCase()+s.slice(1)}
 
 /* =========================================================
@@ -82,12 +93,10 @@ const TAU=Math.PI*2;
    Hub and the 8 assurance agents are orbs. Departments and their systems are squares.
    The arrival choreography (graph.render) is driven by a single clock, k, in seconds. */
 const graph={listHover:-1,live:false};
-$("#dIndex").innerHTML=DEPTS.map((d,i)=>`<button data-d="${i}" data-i="${i}"><span>${d.short}</span><em style="margin-left:${i*7}px">${String(i+1).padStart(2,"0")}</em></button>`).join("");
 $("#dIndex").addEventListener("mouseover",e=>{const b=e.target.closest("button");graph.listHover=b?+b.dataset.i:-1});
 $("#dIndex").addEventListener("mouseleave",()=>graph.listHover=-1);
 $("#dIndex").addEventListener("focusin",e=>{const b=e.target.closest("button");graph.listHover=b?+b.dataset.i:-1});
 $("#dIndex").addEventListener("focusout",()=>graph.listHover=-1);
-$("#gCount").textContent=`${DEPTS.length} departments · ${DEPTS.reduce((a,d)=>a+d.systems.length,0)} agentic systems`;
 (function(){
   const cv=$("#heroCanvas"),c=cv.getContext("2d"),tip=$("#heroTip");
   const MONO='"Sohne Mono","IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace';
@@ -243,6 +252,8 @@ $("#gCount").textContent=`${DEPTS.length} departments · ${DEPTS.reduce((a,d)=>a
   }
 
   graph.sync=size;
+  /* lay the network out again from the current departments */
+  graph.rebuild=()=>{W=0;size()};
   graph.rect=()=>cv.getBoundingClientRect();
   /* called once when the intro's emblem is ready to become the hub */
   graph.start=R=>{hubFrom=Math.max(1,R/hubR)};
@@ -260,5 +271,8 @@ $("#gCount").textContent=`${DEPTS.length} departments · ${DEPTS.reduce((a,d)=>a
   requestAnimationFrame(frame);
 })();
 
-/* the logo in the header and the upload panel */
+/* the logo in the header, the upload panel and the sign-in screen */
 $$("[data-emblem]").forEach(el=>{const cv=document.createElement("canvas");cv.width=cv.height=256;drawEmblem(cv.getContext("2d"),128,128,120,1,0);el.appendChild(cv)});
+
+drawOverview();drawUser();
+addEventListener("access:login",()=>{drawUser();drawOverview();graph.rebuild();showAgent(0);hero.focus=-1;if(reduce)route()});

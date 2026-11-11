@@ -106,7 +106,7 @@ function applyExtraction(txt){
       if(state[s.id] instanceof Set)hits.forEach(h=>state[s.id].add(h.v));else state[s.id]=hits[hits.length-1].v;});
     const ent=ENTITIES.find(e=>low.includes(e.toLowerCase()));if(ent){state.entity=ent;found.push("entity")}
   }else{ // sample extraction until the backend parser is connected
-    Object.assign(state,{entity:ENTITIES[3],data:"Personal data (PII)",authority:"Recommends",impact:"Service delay",oversight:"Low confidence"});
+    Object.assign(state,{entity:ENTITIES[Math.min(3,ENTITIES.length-1)],data:"Personal data (PII)",authority:"Recommends",impact:"Service delay",oversight:"Low confidence"});
     ["Answer citizen FAQs","Translate Arabic ↔ English"].forEach(v=>state.purpose.add(v));
     ["Citizens","Residents","Arabic speakers","People with disabilities"].forEach(v=>state.users.add(v));
     ["Arabic (MSA)","English"].forEach(v=>state.lang.add(v));
@@ -256,5 +256,13 @@ document.addEventListener("keydown",e=>{
   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
 });
 
+/* The entity list follows the data and the person: a department role can only file for its own department. */
+function syncEntity(){
+  const sel=$("#fEntity"),only=ENTITIES.length===1;
+  sel.innerHTML=`<option value="">Select entity…</option>${ENTITIES.map(e=>`<option>${esc(e)}</option>`).join("")}`;
+  if(only)state.entity=ENTITIES[0];else if(!ENTITIES.includes(state.entity))state.entity="";
+  sel.value=state.entity;sel.disabled=only;update();
+}
 $("#pvOrb").innerHTML=agentIconSVG(AGENTS[0]);
-buildLab();update();
+buildLab();syncEntity();
+addEventListener("access:login",syncEntity);

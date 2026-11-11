@@ -154,8 +154,8 @@ function runPipeline() {
           <div class="eyebrow" style="margin-top:18px">Deployment conditions</div>
           <ul class="conds"><li>Only for ${lc(card.purpose[0])}</li><li>${card.oversight === "None" ? "Human review of a 10% sample" : "Human review when confidence is low"}</li><li>No access to personal data beyond the task</li><li>Tell users that AI is used, and offer a way to appeal</li></ul>
           <div class="eyebrow" style="margin-top:18px">Named approver · accepts residual risk</div>
-          <div style="display:flex;gap:8px;margin-top:10px"><select class="select" id="approver" style="flex:1"><option value="">Select approver…</option><option>M. Al Mansoori — Director, Digital Services</option><option>S. Al Hashimi — CIO</option><option>R. Khoury — Head of Data Governance</option></select></div>
-          <div style="display:flex;gap:8px;margin-top:10px"><button class="pill" id="sendBack" style="flex:1;justify-content:center">Send back</button><button class="pill solid" id="approveBtn" style="flex:1.4;justify-content:center" disabled>Approve & record</button></div>
+          ${ACCESS.can("approve") ? `<div style="display:flex;gap:8px;margin-top:10px"><select class="select" id="approver" style="flex:1"><option value="">Confirm you are the approver…</option><option>${ACCESS.user.name} — ${ACCESS.user.title}</option></select></div>
+          <div style="display:flex;gap:8px;margin-top:10px"><button class="pill" id="sendBack" style="flex:1;justify-content:center">Send back</button><button class="pill solid" id="approveBtn" style="flex:1.4;justify-content:center" disabled>Approve & record</button></div>` : `<p class="hint" style="margin:10px 0 0">Waiting for approval. Only your department head or a director can approve this or send it back.</p>`}
         </div>
       </div>`;
 
@@ -179,6 +179,7 @@ function runPipeline() {
       n.className = `node ${cls}${flagged ? " flagged" : ""}${wasPicked ? " picked" : ""}`;
       n.querySelector("small").textContent = txt;
     };
+    if (ACCESS.can("approve")) {
     $("#approver").onchange = e => $("#approveBtn").disabled = !e.target.value;
     $("#sendBack").onclick = () => { log("Agent 7", "Sent back to Agent 5 · fix the appeal route wording", "warn"); setNode(6, "wait", "returned"); };
     $("#approveBtn").onclick = () => {
@@ -189,6 +190,7 @@ function runPipeline() {
       setTimeout(() => { setNode("D", "done", "live"); log("Deploy", "Live with 4 conditions · these are now monitored by Agent 8", "ok"); wires[6].classList.add("on"); }, 900);
       setTimeout(() => { setNode(7, "run", "watching"); log("Agent 8", "Watching: model updates, terms changes, data drift, complaints · standards check every quarter", "ok"); }, 1800);
     };
+    }
 
     wires.forEach((x, i) => { if (i < 5) setTimeout(() => x.classList.add("on"), reduce ? 0 : 1100 + i * 130); });
     if (reduce) return;
