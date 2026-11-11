@@ -19,7 +19,7 @@
    and the deployed service otherwise.  ?sample=1 stays on samples.
    ========================================================= */
 (() => {
-  const DEPLOYED = "https://tdra-gov-api.onrender.com";
+  const DEPLOYED = "https://tdra-gov-api-gg6w.onrender.com";
   const store = { get: k => { try { return localStorage.getItem(k) } catch { return null } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v) } catch {} } };
   const params = new URLSearchParams(location.search);
   if (params.get("api")) store.set("almanara.api", params.get("api").replace(/\/+$/, ""));
