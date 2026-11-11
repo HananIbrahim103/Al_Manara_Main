@@ -25,6 +25,8 @@ function openRun(wait) {
     const cx = Math.max(r + 12, narrow ? 56 : 110), cy = H * (total > 1 ? (i ? .71 : .21) : .44);
     return { W, H, size, r, cx, cy, listX: cx + r + (narrow ? 24 : 96), rowH: narrow ? 36 : 38, nextX: W - r - (narrow ? 4 : 40) };
   }
+  /* a real run can have many checks: rows tighten so each lane still fits */
+  const fit = (g, lanes, rows) => ({ ...g, rowH: Math.min(g.rowH, Math.floor((lanes > 1 ? 262 : 520) / Math.max(1, rows))) });
   const at = (x, g) => `translate(${x - g.r}px,${g.cy - g.r}px)`;
   function addPath(cls, d) {
     const p = document.createElementNS(NS, "path");
@@ -47,7 +49,7 @@ function openRun(wait) {
   function relayout() {
     if (!run.isConnected) return removeEventListener("resize", relayout);
     lanes.forEach(l => {
-      l.g = geo(l.i, l.keys);
+      l.g = fit(geo(l.i, l.keys), l.keys, l.total);
       l.el.style.width = l.el.style.height = l.g.size + "px";
       l.el.style.transform = at(l.g.cx, l.g);
       placeList(l);
@@ -55,7 +57,7 @@ function openRun(wait) {
     });
   }
   function makeLane(key, i, keys, total) {
-    const a = AGENTS[key], g = geo(i, keys), el = document.createElement("div");
+    const a = AGENTS[key], g = fit(geo(i, keys), keys, total), el = document.createElement("div");
     el.className = "ra"; el.style.width = el.style.height = g.size + "px";
     el.innerHTML = `${lineIcon(a, "working")}<div class="ra-text"><span>Agent ${a.n} of 8</span><b>${a.short}</b></div>`;
     const list = document.createElement("div");
@@ -112,7 +114,8 @@ function openRun(wait) {
 }
 
 function runPipeline() {
-  const me = ++pipelineRun, A = AGENTS, RISK = `${cap(card.tier)} risk`;
+  const me = ++pipelineRun, A = AGENTS;
+  let RISK = `${cap(card.tier)} risk`, R = null; /* R: the real evaluation, when the backend is connected */
   const DEPLOY = { n: "D", short: "Deploy with conditions" };
   const who = k => k === "D" ? DEPLOY : A[k];
 
@@ -135,7 +138,20 @@ function runPipeline() {
 
   /* ---------- the end: the whole pipeline, the activity and the approval panel ---------- */
   const concernsHTML = () => concerns.length ? `<div class="eyebrow" style="margin-top:14px">Problems raised · ${concerns.length}</div><ul class="concerns">${concerns.map(c => `<li>${lineIcon(A[c.i])}<span><b>Agent ${A[c.i].n} · ${A[c.i].short}</b>${c.msg}</span></li>`).join("")}</ul>` : "";
+  const wordsOf = s => String(s || "").replace(/_/g, " ");
+  const clip = (s, n) => { s = String(s || "").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+  /* the moment that matters: what the model actually answered when it failed */
+  const findingsHTML = () => {
+    /* the most serious kinds of failure first, and one example of each */
+    const worst = ["pii_leakage", "prompt_injection", "hallucination", "task_accuracy", "contestability", "fairness"], rank = f => { const i = worst.indexOf(f.check_key); return i < 0 ? worst.length : i; };
+    const rec = R.recommendation, shown = [...R.failures].sort((a, b) => rank(a) - rank(b)).filter((f, i, all) => all.findIndex(x => x.check_key === f.check_key) === i).slice(0, 4);
+    return `<div class="card real-verdict ${rec === "reject" ? "no" : "yes"}">
+      <div><div class="eyebrow">Real evaluation · ${esc(R.reference)} · ${esc(R.model)}</div><h3>System recommendation: ${esc(cap(wordsOf(rec)))}</h3><p>Tested on the “${esc(R.suite)}” suite${R.cost != null ? ` · AI cost $${R.cost.toFixed(4)}` : ""}. A named person makes the decision.</p></div>
+    </div>
+    ${shown.length ? `<div class="card findings"><div class="eyebrow">What the model actually answered · ${R.failures.length} failed test${R.failures.length > 1 ? "s" : ""}</div>${shown.map(f => `<article class="finding"><b>${esc(R.title(f.check_key))}${f.origin === "bayanat" ? " <em>Real Bayanat data</em>" : ""}</b><dl><dt>Test</dt><dd>${esc(clip(f.prompt, 260))}</dd><dt>Model said</dt><dd class="said">${esc(clip(f.model_output, 340)) || "No answer"}</dd><dt>Why it failed</dt><dd>${esc(clip(f.notes, 260))}</dd></dl></article>`).join("")}</div>` : ""}`;
+  };
   function finale() {
+    [0, 1, 2, 3, 4, 5].forEach(k => { nodeState[k] = nodeState[k] || { cls: "later", txt: "not needed" }; });
     nodeState[6] = { ...nodeState[6], cls: "wait", txt: "awaiting human" };
     nodeState.D = { cls: "later", txt: "after sign-off" };
     nodeState[7] = { cls: "later", txt: "after sign-off" };
@@ -145,16 +161,17 @@ function runPipeline() {
     };
     const wire = `<div class="wire"><i></i></div>`;
     $("#finale").innerHTML = `<div class="flow">${nodeHTML(0)}${wire}${nodeHTML(1)}${wire}${nodeHTML(2)}${wire}<div class="par on">${nodeHTML(3)}${nodeHTML(4)}</div>${wire}${nodeHTML(5)}${wire}${nodeHTML(6)}${wire}${nodeHTML("D")}${wire}${nodeHTML(7)}</div>
+      ${R ? findingsHTML() : ""}
       <div class="pl">
         <div class="card activity ${card.tier}"><div class="eyebrow">All activity · ${card.id} · ${RISK}</div><div class="afilter" id="afilter" role="group" aria-label="Choose whose activity to show"></div><div class="log" id="finalLog"></div></div>
         <div class="card approve" id="approve">
           <div class="eyebrow">Approval & accountability</div>
           ${concernsHTML()}
-          <div style="margin-top:10px">${card.reviewers.map((r, i) => `<div class="row"><span>${r}</span><span class="st ${i < card.reviewers.length - 1 ? "k" : "p"}">${i < card.reviewers.length - 1 ? "cleared" : "1 concern open"}</span></div>`).join("")}</div>
+          <div style="margin-top:10px">${R ? R.reviews.map(r => `<div class="row"><span>${esc(cap(wordsOf(r.reviewer_role)))}</span><span class="st p">${r.status === "pending" ? "waiting" : esc(wordsOf(r.status))}</span></div>`).join("") : card.reviewers.map((r, i) => `<div class="row"><span>${r}</span><span class="st ${i < card.reviewers.length - 1 ? "k" : "p"}">${i < card.reviewers.length - 1 ? "cleared" : "1 concern open"}</span></div>`).join("")}</div>
           <div class="eyebrow" style="margin-top:18px">Deployment conditions</div>
-          <ul class="conds"><li>Only for ${lc(card.purpose[0])}</li><li>${card.oversight === "None" ? "Human review of a 10% sample" : "Human review when confidence is low"}</li><li>No access to personal data beyond the task</li><li>Tell users that AI is used, and offer a way to appeal</li></ul>
+          <ul class="conds">${R ? (R.conditions.length ? R.conditions.map(c => `<li>${esc(c)}</li>`).join("") : "<li>None suggested</li>") : `<li>Only for ${lc(card.purpose[0])}</li><li>${card.oversight === "None" ? "Human review of a 10% sample" : "Human review when confidence is low"}</li><li>No access to personal data beyond the task</li><li>Tell users that AI is used, and offer a way to appeal</li>`}</ul>
           <div class="eyebrow" style="margin-top:18px">Named approver · accepts residual risk</div>
-          ${ACCESS.can("approve") ? `<div style="display:flex;gap:8px;margin-top:10px"><select class="select" id="approver" style="flex:1"><option value="">Confirm you are the approver…</option><option>${ACCESS.user.name} — ${ACCESS.user.title}</option></select></div>
+          ${R ? `<p class="hint" style="margin:10px 0 0">Saved as ${esc(R.reference)}. The decision opens once all ${R.reviews.length} named reviewers have answered, and it belongs to the department's named approver.</p>` : ACCESS.can("approve") ? `<div style="display:flex;gap:8px;margin-top:10px"><select class="select" id="approver" style="flex:1"><option value="">Confirm you are the approver…</option><option>${ACCESS.user.name} — ${ACCESS.user.title}</option></select></div>
           <div style="display:flex;gap:8px;margin-top:10px"><button class="pill" id="sendBack" style="flex:1;justify-content:center">Send back</button><button class="pill solid" id="approveBtn" style="flex:1.4;justify-content:center" disabled>Approve & record</button></div>` : `<p class="hint" style="margin:10px 0 0">Waiting for approval. Only your department head or a director can approve this or send it back.</p>`}
         </div>
       </div>`;
@@ -179,7 +196,7 @@ function runPipeline() {
       n.className = `node ${cls}${flagged ? " flagged" : ""}${wasPicked ? " picked" : ""}`;
       n.querySelector("small").textContent = txt;
     };
-    if (ACCESS.can("approve")) {
+    if (!R && ACCESS.can("approve")) {
     $("#approver").onchange = e => $("#approveBtn").disabled = !e.target.value;
     $("#sendBack").onclick = () => { log("Agent 7", "Sent back to Agent 5 · fix the appeal route wording", "warn"); setNode(6, "wait", "returned"); };
     $("#approveBtn").onclick = () => {
@@ -255,24 +272,72 @@ function runPipeline() {
 
   async function runLane(lane, key, list, delay) {
     await wait(delay);
-    for (const item of list) {
-      const finishRow = stage ? stage.row(lane, item.label) : () => {};
-      await wait(RUN_BEAT);
+    for (const row of list) {
+      const finishRow = stage ? stage.row(lane, row.label) : () => {};
+      /* a real row stays "being checked" until its result actually arrives */
+      const [result] = await Promise.all([row.work ? row.work() : null, wait(RUN_BEAT)]);
+      const item = { ...row, ...result };
       if (item.msg) log(`Agent ${key + 1}`, item.msg, item.cls || "");
       if (item.flag) {
         concerns.push({ i: key, msg: item.flag });
         nodeState[key].flagged = true;
-        finishRow("issue", "needs attention");
+        finishRow("issue", item.text || "needs attention");
         await wait(RUN_FLAG_HOLD);
       } else if (item.waiting) finishRow("waiting", "waiting for a person");
-      else finishRow("ok", "checked");
+      else finishRow("ok", item.text || "checked");
     }
     nodeState[key] = { ...nodeState[key], cls: "done", txt: nodeState[key].flagged ? "problem found" : "done" };
     if (stage) stage.settle(key);
   }
 
+  /* ---------- the real run: each row is a real backend step or result ---------- */
+  const realRun = window.LIVE_EVAL && LIVE_EVAL.ready();
+  const pctOf = v => `${Math.round(v * 100)}%`;
+  const outcomeOf = (key, r) => {
+    const t = esc(R.title(key));
+    if (!r) return { msg: `${t}: no result`, cls: "warn", flag: `${t} returned no result.`, text: "no result" };
+    const score = r.score != null ? pctOf(r.score) : "", needs = r.score != null && r.threshold != null ? ` (needs ${pctOf(r.threshold)})` : "";
+    const reused = r.source === "reused" ? " · reused evidence" : "";
+    if (r.status === "passed") return { msg: `${t}: passed ${score}${needs}${reused}`, cls: "ok", text: score || "passed" };
+    if (r.status === "warning") return { msg: `${t}: passes with conditions${reused}`, cls: "warn", text: "conditions" };
+    const failed = r.status === "failed";
+    return { msg: `${t}: ${failed ? "failed" : "could not be completed"} ${score}${needs}`, cls: "warn", flag: `${t} ${failed ? `failed at ${score}${needs}` : "could not be completed"}.`, text: failed ? score || "failed" : "not completed" };
+  };
+  const checkRow = key => ({ label: esc(R.title(key)), work: async () => outcomeOf(key, await R.check(key)) });
+  const checksFor = n => R.plan.required_checks.filter(k => R.agentOf(k) === n).map(checkRow);
+  const latencyRow = { label: "Response time", work: async () => {
+    const times = (await R.testRuns()).map(r => r.latency_ms).filter(Boolean).sort((a, b) => a - b);
+    if (!times.length) return { msg: "Response time: no fresh test runs to measure", text: "not measured" };
+    const secs = times[times.length >> 1] / 1000, limit = card.thresholds.lat, over = secs > limit, text = `${secs.toFixed(1)}s`;
+    return { msg: `Response time: median ${text} (limit ${limit}s)`, cls: over ? "warn" : "ok", text, flag: over && `Median response time ${text} is over the ${limit}s limit on your card.` };
+  } };
+  const realStages = [
+    { keys: [0], checks: { 0: [
+      { label: "Risk rating for your card", work: async () => { R = await LIVE_EVAL.start(card, sentence(), () => me !== pipelineRun); card.tier = R.tier; RISK = `${cap(R.tier)} risk`; return { msg: `Backend rated this card ${R.rawTier.toUpperCase()}${R.reason ? ` · ${esc(R.reason)}` : ""}`, cls: "ok", text: R.rawTier }; } },
+      { label: "Closest test suite", work: async () => ({ msg: `Evaluating on your department's closest test suite: ${esc(R.suite)}`, text: R.suiteCode }) },
+      { label: "Shared registry", work: async () => { const c = R.plan.counts; return { msg: R.plan.source ? `Reusing ${c.reused} checks from ${esc(R.plan.source.reference)}, running ${c.to_run} fresh` : `Nothing reusable in the registry, running all ${c.to_run} checks fresh`, text: `${c.to_run} to run` }; } },
+      { label: "Model under test", work: async () => { await R.evaluate(); return { msg: `Evaluation started on ${esc(R.model)}`, cls: "ok", text: R.model }; } },
+    ] } },
+    () => ({ keys: [1], checks: { 1: checksFor(2) } }),
+    () => { const e = R.evidence, gaps = (e.gaps || []).length, n = e.counts || {}; return { keys: [2], checks: { 2: [
+      { label: "Provider evidence", work: async () => ({ msg: `Provider evidence: ${n.verified || 0} verified, ${n.claimed || 0} claimed, ${n.missing || 0} missing`, text: `${n.verified || 0} verified` }) },
+      { label: "Missing provider information", work: async () => ({ msg: `${gaps} provider gap${gaps === 1 ? "" : "s"} recorded as risk`, cls: gaps ? "warn" : "ok", flag: gaps && `The provider left ${gaps} item${gaps === 1 ? "" : "s"} unproven, and unknown information counts as risk.`, text: `${gaps} gap${gaps === 1 ? "" : "s"}` }) },
+    ] } }; },
+    () => { const red = [...checksFor(4), latencyRow], user = checksFor(5), keys = user.length ? [3, 4] : [3]; return { keys, open: user.length ? ["Agents 4+5", "Running in parallel against the model under test"] : null, checks: { 3: red, 4: user } }; },
+    { keys: [5], checks: { 5: [
+      { label: "Combining all results", work: async () => { await R.finished(); return { msg: "Combined the results from every check" }; } },
+      { label: "Recommendation", work: async () => { await R.submit(); const rec = R.recommendation; return { msg: `System recommendation: ${esc(wordsOf(rec).toUpperCase())}`, cls: rec === "reject" ? "warn" : "ok", text: wordsOf(rec) }; } },
+    ] } },
+    () => ({ keys: [6], checks: { 6: [
+      { label: "Reviewers notified", work: async () => ({ msg: `Sent to ${R.reviews.length} named reviewers at the same time`, cls: "warn", text: `${R.reviews.length} reviewers` }) },
+      { label: "Named approver", waiting: true },
+    ] } }),
+  ];
+  const showFailure = e => { $("#finale").innerHTML = `<div class="card real-verdict no"><div><div class="eyebrow">Evaluation stopped</div><h3>This run could not finish</h3><p>${esc(e.message)}. No result has been invented. Go back and try again in a minute.</p></div></div>`; };
+
   (async () => {
-    for (const s of PLAN) {
+    for (const entry of realRun ? realStages : PLAN) {
+      const s = typeof entry === "function" ? entry() : entry;
       s.keys.forEach(k => { nodeState[k] = { cls: "run", txt: "running" }; });
       const lanes = stage ? await stage.enter(s.keys.map(key => ({ key, total: s.checks[key].length }))) : s.keys.map(() => null);
       if (s.open) log(s.open[0], s.open[1]);
@@ -281,5 +346,10 @@ function runPipeline() {
     }
     if (stage) await stage.close(); else $("#run").remove();
     finale();
-  })().catch(() => {});
+  })().catch(async e => {
+    if (e.message === "replaced" || me !== pipelineRun) return;
+    console.error("[evaluation]", e);
+    if (stage) await stage.close(); else if ($("#run")) $("#run").remove();
+    showFailure(e);
+  });
 }

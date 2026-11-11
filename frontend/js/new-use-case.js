@@ -178,7 +178,7 @@ function showGenerated(){
     </div>
     <div class="side">
       <div class="card"><div class="eyebrow">Next</div>
-        <p style="font-size:13.5px;line-height:1.55;color:var(--mute);margin:12px 0 18px">The card goes to <b style="color:var(--fg)">Agent 1</b>. It confirms the tier and checks the shared registry for an approved model that matches this context.</p>
+        <p style="font-size:13.5px;line-height:1.55;color:var(--mute);margin:12px 0 18px">The card goes to <b style="color:var(--fg)">Agent 1</b>. It confirms the tier and checks the shared registry for an approved model that matches this context.${window.LIVE_EVAL&&LIVE_EVAL.ready()?" This starts a real evaluation, which can take a few minutes.":""}</p>
         <div class="actions"><button class="pill solid" id="sendBtn">Send to Agent 1 →</button><button class="pill" id="reportBtn">View report</button><button class="pill" id="jsonBtn">View payload</button><button class="pill" id="backBtn">← Back to the Lab</button></div></div>
       <div class="card"><div class="eyebrow">Reviewers (parallel)</div><div class="revs" style="margin-bottom:0">${card.reviewers.map(r=>`<span>${r}</span>`).join("")}</div></div>
     </div></div>`;
@@ -261,7 +261,11 @@ function syncEntity(){
   const sel=$("#fEntity"),only=ENTITIES.length===1;
   sel.innerHTML=`<option value="">Select entity…</option>${ENTITIES.map(e=>`<option>${esc(e)}</option>`).join("")}`;
   if(only)state.entity=ENTITIES[0];else if(!ENTITIES.includes(state.entity))state.entity="";
-  sel.value=state.entity;sel.disabled=only;update();
+  sel.value=state.entity;sel.disabled=only;
+  const prov=$("#fProv");
+  prov.innerHTML=`<option value="">Provider…</option>${PROVIDERS.map(p=>`<option>${esc(p)}</option>`).join("")}`;
+  if(!PROVIDERS.includes(state.provider))state.provider="";
+  prov.value=state.provider;update();
 }
 $("#pvOrb").innerHTML=agentIconSVG(AGENTS[0]);
 buildLab();syncEntity();

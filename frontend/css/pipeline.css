@@ -73,6 +73,22 @@
 
 .pl{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;margin-top:30px;align-items:start}
 
+/* a real evaluation: the verdict, and what the model actually answered */
+.real-verdict{margin-top:24px;border-left:8px solid var(--low)}
+.real-verdict.no{border-left-color:var(--high)}
+.real-verdict h3{font-size:26px;font-weight:500;letter-spacing:-.02em;margin:8px 0 6px}
+.real-verdict p{margin:0;font-size:14px;color:var(--mute);line-height:1.5}
+.findings{margin-top:16px}
+.finding{padding:14px 0;border-bottom:1px solid var(--line)}
+.finding:last-child{border-bottom:0;padding-bottom:0}
+.finding b{font-size:15px;font-weight:600}
+.finding em{font-style:normal;font-size:11.5px;font-weight:500;color:var(--green);background:#ecf3ee;padding:2px 8px;border-radius:4px;margin-left:8px}
+.finding dl{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 12px;margin:10px 0 0;font-size:13.5px;line-height:1.5}
+.finding dt{color:var(--mute)}
+.finding dd{margin:0;overflow-wrap:anywhere}
+.finding .said{background:#f8ecea;border-left:3px solid var(--high);padding:6px 10px;border-radius:0 4px 4px 0}
+@media (max-width:640px){.finding dl{grid-template-columns:1fr}.finding dt{margin-top:4px}}
+
 /* draws the eye to the approval panel when agents raised problems */
 .approve.pointed{outline:2px solid var(--green);outline-offset:3px;animation:pointed 1.1s ease-in-out infinite}
 @keyframes pointed{50%{outline-color:rgba(33,99,62,.2)}}

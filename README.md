@@ -6,7 +6,7 @@
 
 Today, every department picking an AI model starts from zero: the same tests, the same paperwork, and no clear owner when something goes wrong.
 
-**Almanara fixes that.** Eight AI agents take a use case from idea to approved, monitored model. Evidence is shared across departments, and a named person always makes the final decision.
+**Almanara fixes that.** An eight-step agent pipeline takes a use case from idea to approved, monitored model. Evidence is shared across departments, and a named person always makes the final decision.
 
 Built to cut evaluation time by **80%**. In our sample assessment history, it saved **83%**.
 
@@ -20,19 +20,20 @@ Open the demo and pick a login. Each one sees something different:
 | **Department head** | Do the same, for Traffic & Fines only. |
 | **Employee** | Start and follow use cases in Traffic & Fines. View only. |
 
-The first load can take up to a minute while the server wakes up.
+The first load can take up to a minute while the server wakes up. In **New use case**, sending a card to Agent 1 runs a real evaluation and shows exactly what the model answered when it failed.
 
 ## Features
 
 - **Use-Case Card:** describe what the AI will do, or upload a document.
 - **Automatic risk rating:** low, medium or high, with the reasons shown.
-- **Eight AI agents:** each one handles a step, from compliance to red-team testing.
+- **Eight-step agent pipeline:** LLM testing and judging, combined with clear rules for risk and compliance.
+- **Real evaluations:** a live model is tested, and its failed answers are shown on screen.
 - **Reuse across departments:** approved models and evidence are shared, so nobody tests from scratch.
 - **Arabic and fairness testing:** includes Gulf dialect, accessibility and the right to appeal.
 - **Real UAE data:** models are tested on 7 public tables from Bayanat.ae.
 - **Human sign-off:** AI recommends, but a named person decides and is accountable.
 - **Live monitoring:** models go back for re-checks when something changes.
-- **ROI tracking:** see what each model saves and what it costs.
+- **ROI view:** see what each model could save and cost, using sample figures.
 - **Role-based access:** directors, department heads and employees each get their own view.
 
 ## How it works
@@ -44,7 +45,8 @@ The first load can take up to a minute while the server wakes up.
 - Models are tested on real UAE government data from Bayanat.ae, alongside hand-written test cases.
 - Department, staff and model names are placeholders.
 - There are no passwords, so anyone can try any role.
-- The New use case page is a guided simulation. The other pages can show data from the live backend.
+- A new card gets its own real risk rating, then is evaluated on the department's closest existing test suite.
+- Approval needs each named reviewer to answer, so a new run stops at review.
 
 ## Built with
 

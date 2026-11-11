@@ -294,6 +294,7 @@
     fill(DEPTS, r.depts); fill(ENTITIES, r.entities); fill(SYSTEMS, r.systems); fill(LIVE, r.liveSystems);
     fill(ASSESSMENTS, r.records); fill(EVENTS, r.events); fill(APPROVED_MODELS, r.approved); fill(UAE_STANDARDS, r.standards);
     ACCESS.scope();
+    fill(PROVIDERS, live.raw.modelDetails.map(m => m.name));   /* only registered models can actually be tested */
     if (!r.hasLatency) { const i = MEASURES.findIndex(x => x.k === "lat"); if (i >= 0) MEASURES.splice(i, 1); r.systems.forEach(s => { s.m.lat = s.live.lat = 0; s.trend.lat = Array(8).fill(0); }); }
     AGENTS.forEach((a, i) => { const n = SYSTEMS.filter(s => s.stage === i + 1).length; a.load = i === 7 ? `${LIVE.length} systems watched` : i === 6 ? `${n} awaiting humans` : `${n} with this agent`; });
     Object.assign(dView, { d: 0, s: 0, filter: "all" }); Object.assign(regView, { q: "", dept: "", tier: "", group: "", open: null }); Object.assign(monView, { open: null, dept: "", status: "", q: "" });
@@ -319,7 +320,7 @@
     if (typeof showAgent === "function") { const keep = hero.focus; showAgent(Math.max(0, keep)); hero.focus = keep; }
     syncEntity();
     if (!$("#liveNewNote")) { const n = document.createElement("p"); n.id = "liveNewNote"; n.className = "hint"; n.style.margin = "0 0 14px";
-      n.textContent = "Prototype simulation: a use case built here, its risk tier and its agent pipeline are not yet saved to or run by the registry."; const at = $("#v-define"); at.parentNode.insertBefore(n, at); }
+      n.textContent = "Live: your card is rated by the backend, then a real evaluation runs on your department's closest test suite. It can take a few minutes."; const at = $("#v-define"); at.parentNode.insertBefore(n, at); }
     if (currentPage !== "overview" && currentPage !== "new" && PAGE_HOOKS[currentPage]) { PAGE_HOOKS[currentPage](); syncRoute(); }
   }
 
@@ -329,6 +330,100 @@
     if (big) big.firstChild.textContent = r.evidenceItems.toLocaleString("en-GB") + " ";
     graph.rebuild();
   }
+
+  /* ---------- a real evaluation, started from the New use case page ----------
+     A new card has no accuracy or language test cases of its own, so the card is
+     rated as written and the evaluation runs on the department's closest existing
+     use case, which has a full test suite. The page says which one. */
+  const CARD_VALUES = {
+    data: { "Public": "public", "Internal": "internal", "Confidential": "personal", "Personal data (PII)": "personal", "Sensitive personal": "sensitive_personal" },
+    impact: { "Minor inconvenience": "minor", "Service delay": "moderate", "Financial loss": "serious", "Legal or rights impact": "serious", "Health or safety impact": "severe" },
+    authority: { "Informs": "assistive", "Recommends": "recommends", "Decides": "decides_with_review", "Acts alone": "autonomous" },
+    oversight: { "Every output": "always", "Low confidence": "exception_only", "Spot checks": "sampled", "None": "none" },
+    languages: { "Arabic (MSA)": "ar-msa", "Gulf dialect": "ar-gulf", "English": "en" },
+  };
+  const SUITES = {
+    TRF: { default: "TRF-ASSIST", "Summarise case files": "TRF-TRIAGE", "Classify & route applications": "TRF-TRIAGE", "Detect fraud & anomalies": "TRF-VIOLATION" },
+    RID: { default: "RID-SUMM", "Extract data from documents": "RID-EXTRACT", "Classify & route applications": "RID-FLAG", "Detect fraud & anomalies": "RID-FLAG" },
+    HRL: { default: "HRL-POLICY-QA", "Summarise case files": "HRL-SUMM", "Extract data from documents": "HRL-PERMIT", "Classify & route applications": "HRL-PERMIT", "Recommend eligibility decisions": "HRL-CV" },
+    SCS: { default: "SCS-ASSIST", "Recommend eligibility decisions": "SCS-ELIG" },
+  };
+  const pause = ms => new Promise(ok => setTimeout(ok, ms));
+  async function call(path, token, body) {
+    const res = await fetch(API + path, { method: body === undefined ? "GET" : "POST",
+      headers: { ...(token ? { Authorization: "Bearer " + token } : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data && typeof data.detail === "string" ? data.detail : `${path} answered ${res.status}`);
+    return data;
+  }
+  function cardBody(card, purpose) {
+    const publicUsers = ["Citizens", "Residents", "Businesses", "Arabic speakers", "People with disabilities", "Low digital literacy", "Minors"];
+    const languages = card.languages.map(l => CARD_VALUES.languages[l]).filter(Boolean);
+    return { title: card.purpose.join(", ").slice(0, 200), purpose, affected_users: card.users,
+      audience_type: card.users.some(u => publicUsers.includes(u)) ? "citizen_facing" : "internal",
+      vulnerable_users: card.users.some(u => ["People with disabilities", "Low digital literacy", "Minors"].includes(u)),
+      data_sensitivity: CARD_VALUES.data[card.data], consequence_of_error: CARD_VALUES.impact[card.impact],
+      autonomy_level: CARD_VALUES.authority[card.authority], human_oversight: CARD_VALUES.oversight[card.oversight],
+      languages: languages.length ? languages : ["en", "ar-msa"] };
+  }
+  /* A director acts through the department that owns the use case, as that department's named approver. */
+  async function tokenFor(department) {
+    if (ACCESS.user.dept) return session.token;
+    const owner = live.raw.users.find(u => u.department_id === department.id && u.can_approve);
+    if (!owner) throw new Error(`${department.name} has no named approver`);
+    return (await call("/auth/login", null, { email: owner.email })).access_token;
+  }
+  async function startEvaluation(card, purpose, stopped) {
+    const department = live.raw.depts.find(d => d.name === card.entity);
+    if (!department || !SUITES[department.code]) throw new Error(`${card.entity} has no test suite`);
+    const token = await tokenFor(department), suites = SUITES[department.code];
+    const preview = await call("/tier/preview", token, cardBody(card, purpose));
+    const code = suites[card.purpose.find(p => suites[p])] || suites.default;
+    const models = live.raw.modelDetails, model = models.find(m => card.model && m.name === card.model.provider) || models.find(m => m.slug === "sahab-flash") || models[0];
+    let detail = await call("/assessments", token, { use_case_code: code, model_slug: model.slug });
+    const finalState = () => ["evaluated", "failed"].includes(detail.status);
+    const titles = Object.fromEntries(live.raw.catalog.checks.map(c => [c.key, c.title]));
+    let polling = null, timedOut = false, runs = null;
+    async function poll() {
+      const began = Date.now();
+      while (!stopped() && !finalState() && Date.now() - began < 600000) {
+        await pause(3000);
+        try { detail = await call(`/assessments/${detail.id}`, token); } catch {}   /* a dropped poll is retried */
+      }
+      timedOut = !finalState();
+    }
+    const finished = async () => {
+      await polling;
+      if (timedOut) throw new Error("The evaluation did not finish within 10 minutes");
+      if (detail.status === "failed") throw new Error(Object.values((detail.summary.evaluation || {}).errors || {}).join(" ") || "The evaluation failed");
+    };
+    const decisive = (preview.rationale || []).filter(r => r.decisive).map(r => r.reason)[0] || "";
+    return {
+      rawTier: preview.risk_tier, tier: TIER[preview.risk_tier] || "medium", reason: decisive, suite: detail.use_case.title, suiteCode: code,
+      model: `${detail.model.name} ${detail.model_version.version}`, reference: detail.reference,
+      get plan() { return detail.plan; }, get evidence() { return (detail.summary.evidence || {}); },
+      get reviews() { return detail.reviews; }, get recommendation() { return detail.recommendation; },
+      get conditions() { return ((detail.summary.evaluation || {}).suggested_conditions || []).map(c => c.condition); },
+      get cost() { return ((detail.summary.evaluation || {}).llm || {}).cost_usd; },
+      get failures() { return (runs || []).filter(r => r.passed === false); },
+      title: key => titles[key] || words(key), agentOf: key => CHECK_AGENT[key] || 4,
+      async evaluate() { const res = await call(`/assessments/${detail.id}/evaluate`, token, {}); detail = { ...detail, status: res.status }; polling = poll(); },
+      async check(key) {
+        for (;;) {
+          const found = detail.check_results.find(r => r.check_key === key);
+          if (found) return found;
+          if (finalState() || timedOut) return null;
+          if (stopped()) throw new Error("replaced");
+          await pause(1000);
+        }
+      },
+      finished,
+      async testRuns() { await finished(); return runs = runs || await call(`/assessments/${detail.id}/test-runs`, token); },
+      async submit() { detail = await call(`/assessments/${detail.id}/submit-for-review`, token, {}); },
+    };
+  }
+  window.LIVE_EVAL = { ready: () => live.on, start: startEvaluation };
 
   /* ---------- the small connection control in the header ---------- */
   let chip, panel, toastEl;
@@ -357,7 +452,8 @@
       if (email) { const res = await fetch(API + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
         if (!res.ok) throw new Error("Sign-in was refused"); session.token = (await res.json()).access_token; }
       live.user = await get("/auth/me");
-      const records = build(await load());
+      const loaded = await load(), records = build(loaded);
+      live.raw = loaded;
       if (!records.systems.length) throw new Error("The registry has no assessed use cases to show yet");
       const want = ACCESS.user.dept;
       if (want && !records.depts.some(d => d.code === want.code)) throw new Error(`The registry has nothing to show for ${want.name} yet`);
