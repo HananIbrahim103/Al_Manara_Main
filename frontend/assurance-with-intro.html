@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Almanara — Government AI Evaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=Amiri:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/pages.css">
+<link rel="stylesheet" href="css/pipeline.css">
+<link rel="stylesheet" href="css/monitor.css">
+</head>
+<body class="intro intrograph">
+<div id="intro" aria-label="Intro animation">
+  <canvas id="introCanvas"></canvas>
+  <div id="gate" role="button" tabindex="0" aria-label="Enter the dashboard (plays a short intro with sound)"><div class="dot"></div><span>click to enter</span></div>
+  <button id="introSkip">skip intro →</button>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <span class="orb" data-emblem></span>
+    <div><b>Almanara</b><small>Government AI Evaluation</small></div>
+  </div>
+  <nav class="nav" aria-label="Main">
+    <button data-go="overview" class="on">Overview</button>
+    <button data-go="new">New use case</button>
+    <button data-go="dept">Departments</button>
+    <button data-go="registry">Registry</button>
+    <button data-go="monitor">Monitor</button>
+  </nav>
+  <div class="topright">
+    <div class="tag">Assuring intelligence<br>across every entity</div>
+    <div class="user"><span>M. Al Mansoori</span><span class="avatar">MA</span></div>
+  </div>
+</header>
+
+<main>
+<!-- ======================= OVERVIEW ======================= -->
+<section class="page on" id="p-overview">
+  <div class="ov2">
+    <div class="wordcol" aria-hidden="true"><b>Almanara</b></div>
+
+    <div class="stack">
+      <div class="card dept-card">
+        <div class="eyebrow" style="margin-bottom:10px">Departments</div>
+        <div class="dindex" id="dIndex"></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Shared registry</div>
+        <div style="font-size:30px;letter-spacing:-.02em;margin-top:12px;line-height:1.1">1,284 <span style="font-size:13px;color:var(--mute);font-weight:400">evidence items</span></div>
+        <p style="color:var(--mute);font-size:12.5px;line-height:1.5;margin:10px 0 0;font-weight:400">Reusable across every entity. The entity using a model stays accountable for it.</p>
+      </div>
+    </div>
+
+    <div class="graph">
+      <canvas id="heroCanvas" role="img" aria-label="Network with the central agent at the middle, the eight assurance agents around it, and each department branching out to its agentic systems. Use the Departments list to open a department."></canvas>
+      <div id="heroTip"></div>
+      <div class="gcap tl"><b>Department network</b><br><span id="gCount"></span></div>
+      <div class="gcap bl">Squares are departments and their systems · icons are the 8 agents<br>A faint line links each system to the agent handling it · click a square to open</div>
+      <button class="pill solid gcta" data-go="new">Start a use case</button>
+    </div>
+  </div>
+
+  <div class="ov3">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-size:22px;letter-spacing:-.02em;line-height:1.15">Awaiting your sign-off</div>
+        <span class="mono" style="font-size:12px;color:var(--mute)" id="signoffCount"></span>
+      </div>
+      <div class="signoff" id="signoffList"></div>
+    </div>
+    <div class="card">
+      <div style="font-size:22px;letter-spacing:-.02em;line-height:1.15">The agents</div>
+      <div style="font-size:12px;color:var(--mute);margin-top:4px;font-weight:400">Hover one to find the AI agents it is handling in the network</div>
+      <div class="agentgrid" id="agentGrid"></div>
+      <div class="agentinfo" id="agentInfo"></div>
+    </div>
+  </div>
+
+  <div class="card table">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:22px;font-weight:400;letter-spacing:-.02em">Recent assessments</div>
+      <button class="pill" data-go="new">+ New use case</button>
+    </div>
+    <div class="thead"><span>ID</span><span>Use case</span><span>Entity</span><span>Tier</span><span>Pipeline</span><span>Status</span></div>
+    <div id="rows"></div>
+  </div>
+</section>
+
+<!-- ======================= DEPARTMENT ======================= -->
+<section class="page" id="p-dept"></section>
+
+<!-- ======================= REGISTRY ======================= -->
+<section class="page" id="p-registry"></section>
+
+<!-- ======================= MONITOR ======================= -->
+<section class="page" id="p-monitor"></section>
+
+<!-- ======================= NEW USE CASE ======================= -->
+<section class="page" id="p-new">
+  <div class="nh">
+    <div>
+      <div class="eyebrow">Use-Case Card</div>
+      <h2 id="newTitle">Define the use case</h2>
+    </div>
+    <div class="stepper">
+      <div class="s on" id="st1"><b>01</b>Define</div><div class="ln"></div>
+      <div class="s" id="st2"><b>02</b>Generate</div><div class="ln"></div>
+      <div class="s" id="st3"><b>03</b>Agent pipeline</div>
+    </div>
+  </div>
+
+  <!-- step 1 -->
+  <div id="v-define">
+    <div class="seg" role="tablist">
+      <button class="on" data-mode="lab">Use-Case Lab</button>
+      <button data-mode="upload">Upload a document</button>
+    </div>
+    <div class="build">
+      <div>
+        <div id="m-lab" class="sections"></div>
+        <div id="m-upload" style="display:none">
+          <div class="card" style="padding:24px">
+            <label class="drop" id="drop">
+              <input type="file" id="file" accept=".pdf,.doc,.docx,.txt,.md" hidden>
+              <span class="orb" data-emblem></span>
+              <h3>Drop a use-case document</h3>
+              <p>PDF, Word, text or Markdown. We'll pull out the Use-Case Card fields so you can review them in the Lab.</p>
+            </label>
+            <div id="fileList"></div>
+            <p class="hint">Everything you upload is checked in the Lab before it reaches any agent. Text and Markdown files are read here in the browser. PDF and Word files use sample results until the backend parser is connected.</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card preview" aria-live="polite">
+        <div class="pv-h">
+          <span class="orb" id="pvOrb"></span>
+          <div><b>Use-Case Card</b><small>UC-DRAFT · <span id="pvEntity">no entity</span></small></div>
+          <div class="ring">
+            <svg width="44" height="44"><circle cx="22" cy="22" r="19" stroke="rgba(38,38,38,.14)" stroke-width="2" fill="none"/><circle id="ringArc" cx="22" cy="22" r="19" stroke="#21633e" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" style="transition:stroke-dashoffset .5s"/></svg>
+            <span id="ringTxt">0%</span>
+          </div>
+        </div>
+        <div class="pv-tier">
+          <div class="t"><b id="tierName">—</b><span id="tierLane">Risk tier pending</span></div>
+          <div class="meter"><i id="meter" style="width:0"></i></div>
+          <ul class="reasons" id="reasons"><li>Answer the required sections to calculate the tier</li></ul>
+        </div>
+        <dl class="pv-rows" id="pvRows"></dl>
+        <div class="pv-foot">
+          <div class="eyebrow">Reviewers · notified in parallel</div>
+          <div class="revs" id="revs"><span>—</span></div>
+          <div class="est"><span>Estimated evaluation</span><b id="estTime">—</b></div>
+          <button class="pill solid gen" id="genBtn" disabled>Generate use case</button>
+          <div class="genhint" id="genHint">6 required sections remaining</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- step 2 -->
+  <div id="v-generated" style="display:none"></div>
+  <!-- step 3 -->
+  <div id="v-pipeline" style="display:none"></div>
+</section>
+</main>
+
+<div id="concoct"><div><canvas id="ccCanvas" width="680" height="680"></canvas><p id="ccText">Building the use case…</p></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/emblem.js"></script>
+<script src="js/emblem-pen.js"></script>
+<script src="js/agent-icons.js"></script>
+<script src="js/records.js"></script>
+<script src="js/core.js"></script>
+<script src="js/departments.js"></script>
+<script src="js/registry.js"></script>
+<script src="js/monitor.js"></script>
+<script src="js/new-use-case.js"></script>
+<script src="js/pipeline.js"></script>
+<script src="js/intro.js"></script>
+<script src="js/api.js"></script>
+</body>
+</html>

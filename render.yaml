@@ -1,0 +1,42 @@
+# Render blueprint: one web service (FastAPI) and one Postgres database.
+# The frontend is deployed separately on Vercel and calls this API.
+databases:
+  - name: tdra-gov-db
+    databaseName: tdra_gov
+    plan: free
+
+services:
+  - type: web
+    name: tdra-gov-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Migrations and the (idempotent) seed run on every start, then the API starts.
+    startCommand: alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tdra-gov-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS        # set to the Vercel URL, e.g. https://your-app.vercel.app
+        sync: false
+      - key: CORS_ORIGIN_REGEX   # optional, e.g. https://.*\.vercel\.app for preview deployments
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: AGENT_MODEL
+        value: google/gemini-2.5-flash
+      - key: JUDGE_MODEL
+        value: google/gemini-2.5-flash
+      - key: LLM_MODE
+        value: live
